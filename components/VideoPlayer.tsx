@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 
 interface VideoPlayerProps {
@@ -11,95 +11,42 @@ interface VideoPlayerProps {
   currentIndex?: number
 }
 
-interface YTPlayer {
-  destroy: () => void
-}
-
-interface YT {
-  Player: new (
-    element: HTMLElement,
-    config: {
-      videoId: string
-      playerVars: Record<string, unknown>
-      events: {
-        onReady: () => void
-        onStateChange: (event: { data: number }) => void
-      }
-    }
-  ) => YTPlayer
-}
-
-declare global {
-  interface Window {
-    YT: YT
-    onYouTubeIframeAPIReady: () => void
-  }
-}
-
 export default function VideoPlayer({
   youtubeId,
   playlistId,
   playlistVideos = [],
   currentIndex = 0,
 }: VideoPlayerProps) {
-  const playerRef = useRef<YTPlayer | null>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
-  const [, setIsPlayerReady] = useState(false)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
 
+  // Listen for video end events to auto-advance
   useEffect(() => {
-    // Load YouTube IFrame API
-    if (!window.YT) {
-      const tag = document.createElement('script')
-      tag.src = 'https://www.youtube.com/iframe_api'
-      const firstScriptTag = document.getElementsByTagName('script')[0]
-      firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag)
-    }
+    const handleMessage = (event: MessageEvent) => {
+      // Only accept messages from YouTube
+      if (event.origin !== 'https://www.youtube.com') return
 
-    // Initialize player when API is ready
-    window.onYouTubeIframeAPIReady = () => {
-      if (containerRef.current) {
-        playerRef.current = new window.YT.Player(containerRef.current, {
-          videoId: youtubeId,
-          playerVars: {
-            autoplay: 1,
-            rel: 0,
-            modestbranding: 1,
-          },
-          events: {
-            onReady: () => setIsPlayerReady(true),
-            onStateChange: onPlayerStateChange,
-          },
-        })
+      try {
+        const data = JSON.parse(event.data)
+        // YouTube player state: 0 = ended
+        if (data.event === 'onStateChange' && data.info === 0) {
+          // Video ended, play next if in playlist
+          if (playlistId && playlistVideos.length > 0) {
+            const nextIndex = currentIndex + 1
+            if (nextIndex < playlistVideos.length) {
+              const nextVideo = playlistVideos[nextIndex]
+              router.push(`/watch/${nextVideo.id}?playlist=${playlistId}&index=${nextIndex}`)
+            }
+          }
+        }
+      } catch {
+        // Ignore non-JSON messages
       }
     }
 
-    // If YT is already loaded, initialize immediately
-    if (window.YT && window.YT.Player) {
-      window.onYouTubeIframeAPIReady()
-    }
-
-    return () => {
-      if (playerRef.current) {
-        playerRef.current.destroy()
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [youtubeId])
-
-  const onPlayerStateChange = (event: { data: number }) => {
-    // When video ends (state 0), play next video if in playlist
-    if (event.data === 0 && playlistId && playlistVideos.length > 0) {
-      const nextIndex = currentIndex + 1
-      if (nextIndex < playlistVideos.length) {
-        const nextVideo = playlistVideos[nextIndex]
-        router.push(`/watch/${nextVideo.id}?playlist=${playlistId}&index=${nextIndex}`)
-      } else {
-        // Playlist finished, optionally loop back to start
-        console.log('Playlist finished')
-      }
-    }
-  }
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
+  }, [playlistId, playlistVideos, currentIndex, router])
 
   const playNext = () => {
     if (playlistId && playlistVideos.length > 0) {
@@ -124,7 +71,15 @@ export default function VideoPlayer({
   return (
     <div>
       <div className="bg-black rounded-lg overflow-hidden shadow-2xl aspect-video relative">
-        <div ref={containerRef} className="w-full h-full" />
+        <iframe
+          ref={iframeRef}
+          className="w-full h-full"
+          src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`}
+          title="YouTube video player"
+          frameBorder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowFullScreen
+        />
       </div>
 
       {playlistId && playlistVideos.length > 0 && (
