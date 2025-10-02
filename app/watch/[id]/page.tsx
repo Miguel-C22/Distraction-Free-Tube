@@ -7,9 +7,11 @@ export default async function WatchPage({
   params,
   searchParams,
 }: {
-  params: { id: string }
-  searchParams: { playlist?: string; index?: string }
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ playlist?: string; index?: string }>
 }) {
+  const { id } = await params
+  const { playlist, index } = await searchParams
   const supabase = await createClient()
 
   const {
@@ -24,7 +26,7 @@ export default async function WatchPage({
   const { data: video, error: videoError } = await supabase
     .from('videos')
     .select('*')
-    .eq('id', params.id)
+    .eq('id', id)
     .single()
 
   if (videoError || !video) {
@@ -33,20 +35,27 @@ export default async function WatchPage({
 
   // Fetch playlist videos if playing from a playlist
   let playlistVideos: Array<{ id: string; youtube_id: string }> = []
-  if (searchParams.playlist) {
+  if (playlist) {
     const { data: playlistVideoData } = await supabase
       .from('playlist_videos')
       .select(`
         video_id,
         videos (id, youtube_id)
       `)
-      .eq('playlist_id', searchParams.playlist)
+      .eq('playlist_id', playlist)
       .order('position')
 
-    playlistVideos = playlistVideoData?.map((pv: any) => pv.videos) || []
+    type PlaylistVideoData = {
+      video_id: string
+      videos: Array<{ id: string; youtube_id: string }> | { id: string; youtube_id: string }
+    }
+
+    playlistVideos = playlistVideoData?.map((pv: PlaylistVideoData) => {
+      return Array.isArray(pv.videos) ? pv.videos[0] : pv.videos
+    }) || []
   }
 
-  const currentIndex = searchParams.index ? parseInt(searchParams.index) : 0
+  const currentIndex = index ? parseInt(index) : 0
 
   return (
     <div className="min-h-screen bg-base-200">
@@ -59,7 +68,7 @@ export default async function WatchPage({
             <VideoPlayer
               videoId={video.id}
               youtubeId={video.youtube_id}
-              playlistId={searchParams.playlist}
+              playlistId={playlist}
               playlistVideos={playlistVideos}
               currentIndex={currentIndex}
             />

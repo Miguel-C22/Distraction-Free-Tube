@@ -110,7 +110,7 @@ export async function fetchPlaylistMetadata(playlistId: string) {
   }
 
   const itemsData = await itemsResponse.json()
-  const videoIds = itemsData.items.map((item: any) => item.snippet.resourceId.videoId).join(',')
+  const videoIds = itemsData.items.map((item: { snippet: { resourceId: { videoId: string } } }) => item.snippet.resourceId.videoId).join(',')
 
   // Fetch video details for all videos in playlist
   const videosResponse = await fetch(
@@ -130,7 +130,7 @@ export async function fetchPlaylistMetadata(playlistId: string) {
       thumbnail_url: playlist.snippet.thumbnails.high?.url || playlist.snippet.thumbnails.default?.url,
       video_count: playlist.contentDetails.itemCount,
     },
-    videos: videosData.items.map((video: any) => ({
+    videos: videosData.items.map((video: { id: string; snippet: { title: string; description: string; thumbnails: { high?: { url: string }; default?: { url: string }; }; channelTitle: string }; contentDetails: { duration: string } }) => ({
       youtube_id: video.id,
       title: video.snippet.title,
       description: video.snippet.description,

@@ -3,8 +3,10 @@ import { redirect } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import PlaylistView from '@/components/PlaylistView'
 import PlaylistInfo from '@/components/PlaylistInfo'
+import { Video } from '@/types/database.types'
 
-export default async function PlaylistPage({ params }: { params: { id: string } }) {
+export default async function PlaylistPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const supabase = await createClient()
 
   const {
@@ -19,7 +21,7 @@ export default async function PlaylistPage({ params }: { params: { id: string } 
   const { data: playlist, error: playlistError } = await supabase
     .from('playlists')
     .select('*')
-    .eq('id', params.id)
+    .eq('id', id)
     .single()
 
   if (playlistError || !playlist) {
@@ -35,14 +37,24 @@ export default async function PlaylistPage({ params }: { params: { id: string } 
       video_id,
       videos (*)
     `)
-    .eq('playlist_id', params.id)
+    .eq('playlist_id', id)
     .order('position')
 
-  const videos = (playlistVideos || []).map((pv: any) => ({
-    playlistVideoId: pv.id,
-    position: pv.position,
-    ...pv.videos,
-  }))
+  type PlaylistVideoData = {
+    id: string
+    position: number
+    video_id: string
+    videos: Array<Record<string, unknown>> | Record<string, unknown>
+  }
+
+  const videos = (playlistVideos || []).map((pv: PlaylistVideoData) => {
+    const videoData = Array.isArray(pv.videos) ? pv.videos[0] : pv.videos
+    return {
+      playlistVideoId: pv.id,
+      position: pv.position,
+      ...videoData,
+    } as unknown as Video
+  })
 
   return (
     <div className="min-h-screen bg-base-200">
@@ -58,7 +70,7 @@ export default async function PlaylistPage({ params }: { params: { id: string } 
           {/* Playlist Contents - Right Side */}
           <div className="lg:col-span-2">
             <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">Playlist Contents</h2>
-            <PlaylistView videos={videos} playlistId={params.id} />
+            <PlaylistView videos={videos} playlistId={id} />
           </div>
         </div>
       </div>

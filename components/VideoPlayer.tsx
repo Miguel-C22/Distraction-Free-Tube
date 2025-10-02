@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 
 interface VideoPlayerProps {
   videoId: string
@@ -11,24 +11,41 @@ interface VideoPlayerProps {
   currentIndex?: number
 }
 
+interface YTPlayer {
+  destroy: () => void
+}
+
+interface YT {
+  Player: new (
+    element: HTMLElement,
+    config: {
+      videoId: string
+      playerVars: Record<string, unknown>
+      events: {
+        onReady: () => void
+        onStateChange: (event: { data: number }) => void
+      }
+    }
+  ) => YTPlayer
+}
+
 declare global {
   interface Window {
-    YT: any
+    YT: YT
     onYouTubeIframeAPIReady: () => void
   }
 }
 
 export default function VideoPlayer({
-  videoId,
   youtubeId,
   playlistId,
   playlistVideos = [],
   currentIndex = 0,
 }: VideoPlayerProps) {
-  const playerRef = useRef<any>(null)
+  const playerRef = useRef<YTPlayer | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
-  const [isPlayerReady, setIsPlayerReady] = useState(false)
+  const [, setIsPlayerReady] = useState(false)
 
   useEffect(() => {
     // Load YouTube IFrame API
@@ -67,9 +84,10 @@ export default function VideoPlayer({
         playerRef.current.destroy()
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [youtubeId])
 
-  const onPlayerStateChange = (event: any) => {
+  const onPlayerStateChange = (event: { data: number }) => {
     // When video ends (state 0), play next video if in playlist
     if (event.data === 0 && playlistId && playlistVideos.length > 0) {
       const nextIndex = currentIndex + 1

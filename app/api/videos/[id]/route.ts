@@ -3,9 +3,10 @@ import { NextResponse } from 'next/server'
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const supabase = await createClient()
 
     const {
@@ -20,7 +21,7 @@ export async function DELETE(
     const { error } = await supabase
       .from('videos')
       .delete()
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('user_id', user.id)
 
     if (error) {

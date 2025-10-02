@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import Navbar from '@/components/Navbar'
 import VideoCard from '@/components/VideoCard'
 import PlaylistCard from '@/components/PlaylistCard'
 import AddContentModal from '@/components/AddContentModal'
@@ -35,6 +34,7 @@ export default function Dashboard() {
     }
 
     loadUser()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function loadContent() {

@@ -3,9 +3,10 @@ import { NextResponse } from 'next/server'
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const supabase = await createClient()
 
     const {
@@ -20,7 +21,7 @@ export async function DELETE(
     const { data: playlistVideos } = await supabase
       .from('playlist_videos')
       .select('video_id')
-      .eq('playlist_id', params.id)
+      .eq('playlist_id', id)
 
     const videoIds = playlistVideos?.map(pv => pv.video_id) || []
 
@@ -28,7 +29,7 @@ export async function DELETE(
     const { error: playlistError } = await supabase
       .from('playlists')
       .delete()
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('user_id', user.id)
 
     if (playlistError) {

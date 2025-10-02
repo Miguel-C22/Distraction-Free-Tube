@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     const { playlist: playlistMetadata, videos: videosMetadata } = await fetchPlaylistMetadata(playlistId)
 
     // Calculate total duration
-    const totalDuration = videosMetadata.reduce((acc: number, video: any) => acc + (video.duration || 0), 0)
+    const totalDuration = videosMetadata.reduce((acc: number, video: { duration?: number }) => acc + (video.duration || 0), 0)
 
     // Insert playlist into database
     const { data: playlist, error: playlistError } = await supabase
@@ -81,11 +81,13 @@ export async function POST(request: Request) {
       }
 
       // Create playlist_video relationship
-      await supabase.from('playlist_videos').insert({
-        playlist_id: playlist.id,
-        video_id: existingVideo.id,
-        position: i,
-      })
+      if (existingVideo) {
+        await supabase.from('playlist_videos').insert({
+          playlist_id: playlist.id,
+          video_id: existingVideo.id,
+          position: i,
+        })
+      }
     }
 
     return NextResponse.json({ playlist }, { status: 201 })

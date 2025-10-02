@@ -4,9 +4,10 @@ import { fetchPlaylistMetadata } from '@/lib/youtube'
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const supabase = await createClient()
 
     const {
@@ -21,7 +22,7 @@ export async function POST(
     const { data: existingPlaylist, error: playlistError } = await supabase
       .from('playlists')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('user_id', user.id)
       .single()
 
@@ -42,7 +43,7 @@ export async function POST(
     )
 
     // Calculate total duration
-    const totalDuration = videosMetadata.reduce((acc: number, video: any) => acc + (video.duration || 0), 0)
+    const totalDuration = videosMetadata.reduce((acc: number, video: { duration?: number }) => acc + (video.duration || 0), 0)
 
     // Update playlist metadata
     await supabase
@@ -54,20 +55,28 @@ export async function POST(
         video_count: videosMetadata.length,
         total_duration: totalDuration,
       })
-      .eq('id', params.id)
+      .eq('id', id)
 
     // Get existing playlist videos
     const { data: existingPlaylistVideos } = await supabase
       .from('playlist_videos')
       .select('video_id, videos(youtube_id)')
-      .eq('playlist_id', params.id)
+      .eq('playlist_id', id)
+
+    type PlaylistVideoData = {
+      video_id: string
+      videos: Array<{ youtube_id: string }> | { youtube_id: string }
+    }
 
     const existingVideoMap = new Map(
-      existingPlaylistVideos?.map((pv: any) => [pv.videos.youtube_id, pv.video_id]) || []
+      existingPlaylistVideos?.map((pv: PlaylistVideoData) => {
+        const videos = Array.isArray(pv.videos) ? pv.videos[0] : pv.videos
+        return [videos.youtube_id, pv.video_id] as [string, string]
+      }) || []
     )
 
     // Delete all existing playlist_videos relationships
-    await supabase.from('playlist_videos').delete().eq('playlist_id', params.id)
+    await supabase.from('playlist_videos').delete().eq('playlist_id', id)
 
     // Re-add videos in new order
     for (let i = 0; i < videosMetadata.length; i++) {
@@ -102,7 +111,7 @@ export async function POST(
       // Add to playlist
       if (videoId) {
         await supabase.from('playlist_videos').insert({
-          playlist_id: params.id,
+          playlist_id: id,
           video_id: videoId,
           position: i,
         })
